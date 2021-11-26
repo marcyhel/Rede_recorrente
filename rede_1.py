@@ -3,6 +3,7 @@ import random
 import copy
 import math
 import os
+import copy
 class Matriz:
 	def __init__(self,linhas,colunas):
 		self.linhas=linhas
@@ -58,12 +59,12 @@ class Matriz:
 			print("não tem solucao")
 		mat=Matriz(mat1.linhas,mat2.colunas)
 		mat.zerar()
-		"""Multiplica duas matrizes."""
+		
 		matrizR = copy.deepcopy(mat.dado)
 		for i in range(mat1.linhas):
 			for j in range(mat2.colunas):
 				for k in range(mat1.colunas):
-					# print(matrizR[i][j])
+					
 					mat.dado[i][j] += mat1.dado[i][k] * mat2.dado[k][j]
 		return mat
 	
@@ -81,13 +82,14 @@ class RedeNeural:
 	def __init__(self):
 		self.neuronio_pronto=[]
 		self.neuronio_recorre=[]
+		self.erro_neuronio_anterior_recorre=[]
 		self.pesos_recorre=[]
 		self.neuronios=[]
 		self.bias=[]
 		self.numbias=0.5
 		self.ativador=RedeNeural.sigmoid
 		self.learning_rate=0.01
-	
+		self.mat_entrada_aux=0
 	@staticmethod
 	def deriva_sigmoid(x):
 		return RedeNeural.sigmoid(x) * (1-RedeNeural.sigmoid(x) )
@@ -116,20 +118,14 @@ class RedeNeural:
 	    texto = []  #declaro um vetor
 	    matriz = [] #declaro um segundo vetor
 	    texto = arquivo.readlines() #quebra as linhas do arquivo em vetores 
-	    #print("vetor texto -> ",texto) #aqui eu mostro
-	    #print("")
-
+	   
 	    for i in range(len(texto)):          #esse for percorre a posições dp vetor texto
 	        matriz.append(texto[i].split())  #aqui eu quebro nos espasos das palavras
 
 	    for x in range(len(matriz)):
 	    	for i in range(len(matriz[0])):
 	    		matriz[x][i]=float(matriz[x][i])
-	   			#print(matriz[0][0])
-	    #print("vetor matriz -> ",matriz) #mostra o vertor com um conjunto de vetores
-	    #print("")
-	    #for i in range(len(texto)):          #mostra quedrando em linhas
-	    #    print(matriz[i])  
+	   			
 	    return matriz
 	def addNeuronio(self,num1,num2):
 		neu=Matriz(num2,num1)
@@ -141,8 +137,10 @@ class RedeNeural:
 		self.bias.append(bias)
 		self.neuronios.append(neu)
 		self.pesos_recorre.append(recorre)
+
 	def limparRecorre(self):
 		self.neuronio_recorre=[]
+		self.erro_neuronio_anterior_recorre=[]
 	def map_deriva(self,mat):
 		for i in range(mat.linhas):
 			for j in range(mat.colunas):
@@ -169,7 +167,7 @@ class RedeNeural:
 				entrada.shape=(len(arr),1)
 				mat=Matriz(len(arr),1)
 				mat.dado=entrada
-				
+				self.mat_entrada_aux=copy.deepcopy(mat)
 				aux=Matriz.multiplica(self.neuronios[i],mat)
 				
 				aux=Matriz.soma(aux,self.bias[i])
@@ -200,46 +198,39 @@ class RedeNeural:
 				entrada.shape=(len(arr),1)
 				mat=Matriz(len(arr),1)
 				mat.dado=entrada
-				
+				self.mat_entrada_aux=copy.deepcopy(mat)
 				aux=Matriz.multiplica(self.neuronios[i],mat)
 				
 				
 				
 			else:
 				aux=Matriz.multiplica(self.neuronios[i],aux)
-				
 
-			#print("------{}".format(i))
-			#print(aux.dado)
+			
 			if(i<len(self.neuronios)-1):
 				try:
-					#self.neuronio_recorre[i]=Matriz.multiplica_escalar(self.neuronio_recorre[i],2)
-					#aux = Matriz.hadamard(self.neuronio_recorre[i],copy.deepcopy(aux)) 
+					#multiplicando os neuronios da camada anteriar pra proxima
 					aux_recorre=Matriz.multiplica(self.pesos_recorre[i],self.neuronio_recorre[i])
 					aux=Matriz.soma(aux_recorre,aux)
 					
 				except:
-					
-					self.neuronio_recorre.append(copy.deepcopy(aux))
-					
-					self.neuronio_recorre[i].limpa_num(1)
-
-					#aux = Matriz.hadamard(self.neuronio_recorre[i],copy.deepcopy(aux)) 
-					aux_recorre=Matriz.multiplica(self.pesos_recorre[i],self.neuronio_recorre[i])
-					aux=Matriz.soma(aux_recorre,aux)
+					pass
 				
 
 			
-				self.neuronio_recorre[i]=copy.deepcopy(aux)
-				#print(self.neuronio_recorre[i].dado)
+				
+				
 			aux=Matriz.soma(aux,self.bias[i])
 			aux=self.map_ativar(aux)
+
+			if(i<len(self.neuronios)-1):
+				try:
+					self.neuronio_recorre[i]=copy.deepcopy(aux)
+				except:
+					self.neuronio_recorre.append(copy.deepcopy(aux))
+					#self.neuronio_recorre[i].limpa_num(1)
 			self.neuronio_pronto.append(aux)
-			#print('conect')
-			#print(self.neuronios[i].dado)
-			#print('pronto')
-			#print(aux.dado)
-		#print("---------")
+			
 		return aux
 	def treinar(self,arr,esperado):
 		gradiente=0
@@ -252,35 +243,118 @@ class RedeNeural:
 		espera=Matriz(len(esperado),1)
 		espera.dado=aux
 		
-		saida_erro=Matriz.subtrair(espera,self.neuronio_pronto[len(self.neuronios)-1])
+		saida_erro=Matriz.subtrair(espera,self.neuronio_pronto[len(self.neuronio_pronto)-1])
+		aux_erro=copy.deepcopy(saida_erro)
 		d_saida=self.map_deriva(saida)
 		for i in range(len(self.neuronios)-1,-1,-1):
 			#print(i)
 			if(i==len(self.neuronios)-1):
 				#print('entrada')
 				neu_ante=Matriz.transpor(self.neuronio_pronto[i-1])
-				gradiente=Matriz.hadamard(d_saida,saida_erro)
-				gradiente=Matriz.multiplica_escalar(gradiente,self.learning_rate)
-			  
-				self.bias[i]=Matriz.soma(self.bias[i],gradiente)
-				delta=Matriz.multiplica(gradiente,neu_ante)
 				
-				self.neuronios[i]=Matriz.soma(self.neuronios[i],delta)
 				
 
 			else:
 				#print('meio')
 				transpo=Matriz.transpor(self.neuronios[i+1])
 				saida_erro=Matriz.multiplica(transpo,saida_erro)
-				d_saida=self.map_deriva(self.neuronio_pronto[i])
-				neu_ante=Matriz.transpor(self.neuronio_pronto[i])
-				gradiente=Matriz.hadamard(d_saida,saida_erro)
-				gradiente=Matriz.multiplica_escalar(gradiente,self.learning_rate)
+				
 
-				self.bias[i]=Matriz.soma(self.bias[i],gradiente)
-				delta=Matriz.multiplica(gradiente,neu_ante)
-			
+
+				d_saida=self.map_deriva(self.neuronio_pronto[i])
+				try:
+					neu_ante=Matriz.transpor(self.neuronio_pronto[i-1])
+				except:
+					neu_ante=Matriz.transpor(self.mat_entrada_aux)
+				
+
+				
+			gradiente=Matriz.hadamard(d_saida,saida_erro)
+			gradiente=Matriz.multiplica_escalar(gradiente,self.learning_rate)
+			self.bias[i]=Matriz.soma(self.bias[i],gradiente)
+			delta=Matriz.multiplica(gradiente,neu_ante)
+			try:
 				self.neuronios[i]=Matriz.soma(self.neuronios[i],delta)
+			except:
+				pass
+		return aux_erro
+	def treinarRecorre(self,arr,esperado):
+		gradiente=0
+		neu_ante=0
+		saida=0
+		saida=self.predictRecore(arr)
+
+		aux=np.array(esperado)
+		aux.shape=(len(esperado),1)
+		espera=Matriz(len(esperado),1)
+		espera.dado=aux
+		
+		saida_erro=Matriz.subtrair(espera,self.neuronio_pronto[len(self.neuronio_pronto)-1])
+		aux_erro=copy.deepcopy(saida_erro)
+		d_saida=self.map_deriva(saida)
+		aux_erro_recorre=0
+		for i in range(len(self.neuronios)-1,-1,-1):
+
+			#print(i)
+			if(i==len(self.neuronios)-1):
+				#print('entrada')
+				neu_ante=Matriz.transpor(self.neuronio_pronto[i-1])
+				
+				
+
+			else:
+				#print('meio')
+				transpo=Matriz.transpor(self.neuronios[i+1])
+				saida_erro=Matriz.multiplica(transpo,saida_erro)
+				
+
+
+				d_saida=self.map_deriva(copy.deepcopy(self.neuronio_pronto[i]))
+				try:
+					neu_ante=Matriz.transpor(self.neuronio_pronto[i-1])
+				except:
+					neu_ante=Matriz.transpor(self.mat_entrada_aux)
+				
+			if(i!=len(self.neuronios)-1  ):
+				#print(aux_erro_recorre)
+				#print(len(self.pesos_recorre[i].dado),len(self.pesos_recorre[i].dado[0]))
+				erro_recorre=0
+				try:
+					erro_recorre=copy.deepcopy(self.erro_neuronio_anterior_recorre[aux_erro_recorre])
+					
+
+				except:
+					
+					self.erro_neuronio_anterior_recorre.append(copy.deepcopy(saida_erro))
+					erro_recorre=copy.deepcopy(self.erro_neuronio_anterior_recorre[aux_erro_recorre])
+
+
+				recorre_tranpo=Matriz.transpor(copy.deepcopy(self.pesos_recorre[i]))
+				saida_erro_recorre=Matriz.multiplica(recorre_tranpo,erro_recorre)
+				d_saida_recorre=self.map_deriva(copy.deepcopy(self.neuronio_pronto[i]))
+
+				gradiente_recorre=Matriz.hadamard(d_saida_recorre,saida_erro_recorre)
+				gradiente_recorre=Matriz.multiplica_escalar(gradiente_recorre,self.learning_rate)
+				#print(gradiente_recorre.dado)
+				#print("")
+				#print(self.neuronio_pronto[i].dado)
+				#print("---")
+				delta_recorre=Matriz.multiplica(gradiente_recorre,Matriz.transpor(copy.deepcopy(self.neuronio_pronto[i])))
+				#print(delta_recorre.dado)
+				#print("")
+				self.pesos_recorre[i]=Matriz.soma(self.pesos_recorre[i],delta_recorre)
+				aux_erro_recorre+=1
+
+			gradiente=Matriz.hadamard(d_saida,saida_erro)
+			gradiente=Matriz.multiplica_escalar(gradiente,self.learning_rate)
+			self.bias[i]=Matriz.soma(self.bias[i],gradiente)
+			delta=Matriz.multiplica(gradiente,neu_ante)
+			try:
+				self.neuronios[i]=Matriz.soma(self.neuronios[i],delta)
+			except:
+				pass
+			
+		return aux_erro
 '''
 rede=RedeNeural()
 
